@@ -80,16 +80,45 @@ public enum AsyncCentralState: Int {
 public typealias AsyncCentralStateCallback = (AsyncCentralState) -> Void
 public typealias BluetoothStateCallback = (CBCentralManagerState) -> Void
 public typealias PeripheralScanCallback = (PeripheralScanResult) -> Void
-public typealias ConnectPeripheralCallback = (Error?) -> Void
-public typealias DisconnectPeripheralCallback = (Error?) -> Void
+public typealias ConnectPeripheralCallback = (Result<Void>) -> Void
+public typealias DisconnectPeripheralCallback = (Result<Void>) -> Void
 
 /// A singleton wrapping a CBCentralManager instance to run CBCentralManager related functions with closures based callbacks instead of the usual CBCentralManagerDelegate interface.
 public final class Central {
-    public static let sharedInstance = Central()
+    private static var _sharedInstance: Central?
     
-    fileprivate let centralProxy: CentralProxy = CentralProxy()
+    /// The sharedInstance Singleton, you can instantiate it yourself by
+    /// calling `setSharedInstanceWith(restoreIdentifier: )` which will allow you
+    /// to pass in a state preservation identifier. Otherwise, this sharedInstance
+    /// be lazily initialized the first time you call this getter.
+    public static var sharedInstance: Central {
+        if let sharedInstance = _sharedInstance {
+            return sharedInstance
+        }
+        _sharedInstance = Central()
+        return _sharedInstance!
+    }
     
-    private init() {}
+    /// Allows you to initially set the sharedInstance and use the restore 
+    /// identifier string of your choice for state preservation between app 
+    /// launches.
+    @discardableResult
+    public static func setSharedInstanceWith(restoreIdentifier: String) -> Central {
+        assertionFailure("You can only set the sharedInstance of the Central once.")
+        _sharedInstance = Central(stateRestoreIdentifier: restoreIdentifier)
+        return _sharedInstance!
+    }
+    
+    fileprivate let centralProxy: CentralProxy
+    
+    private init() {
+        self.centralProxy = CentralProxy()
+    }
+    
+    private init(stateRestoreIdentifier: String) {
+        self.centralProxy = CentralProxy(stateRestoreIdentifier: stateRestoreIdentifier)
+    }
+    
 }
 
 // MARK: Internal
@@ -102,15 +131,13 @@ extension Central {
     
     func connect(peripheral: CBPeripheral,
                  timeout: TimeInterval = 10,
-                 completion: @escaping ConnectPeripheralCallback)
-    {
+                 completion: @escaping ConnectPeripheralCallback) {
         centralProxy.connect(peripheral: peripheral, timeout: timeout, completion)
     }
     
     func disconnect(peripheral: CBPeripheral,
                     timeout: TimeInterval = 10,
-                    completion: @escaping DisconnectPeripheralCallback)
-    {
+                    completion: @escaping DisconnectPeripheralCallback) {
         centralProxy.disconnect(peripheral: peripheral, timeout: timeout, completion)
     }
 }

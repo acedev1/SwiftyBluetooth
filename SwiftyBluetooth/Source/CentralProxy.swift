@@ -39,6 +39,12 @@ final class CentralProxy: NSObject {
         self.centralManager.delegate = self
     }
     
+    init(stateRestoreIdentifier: String) {
+        self.centralManager = CBCentralManager(delegate: nil, queue: nil, options: [CBCentralManagerOptionRestoreIdentifierKey: stateRestoreIdentifier])
+        super.init()
+        self.centralManager.delegate = self
+    }
+    
     fileprivate func postCentralEvent(_ event: CentralEvent, userInfo: [AnyHashable: Any]? = nil) {
         NotificationCenter.default.post(
             name: Notification.Name(rawValue: event.rawValue),
@@ -162,8 +168,15 @@ private final class ConnectPeripheralRequest {
     }
     
     func invokeCallbacks(error: Error?) {
+        let result: Result<Void> = {
+            if let error = error {
+                return .failure(error)
+            } else {
+                return .success()
+            }
+        }()
         for callback in callbacks {
-            callback(error)
+            callback(result)
         }
     }
 }
@@ -172,14 +185,14 @@ extension CentralProxy {
     func connect(peripheral: CBPeripheral, timeout: TimeInterval, _ callback: @escaping ConnectPeripheralCallback) {
         initializeBluetooth { [unowned self] (error) in
             if let error = error {
-                callback(error)
+                callback(.failure(error))
                 return
             }
             
             let uuid = peripheral.identifier
             
             if let cbPeripheral = self.centralManager.retrievePeripherals(withIdentifiers: [uuid]).first , cbPeripheral.state == .connected {
-                callback(nil)
+                callback(.success())
                 return
             }
             
@@ -233,8 +246,15 @@ private final class DisconnectPeripheralRequest {
     }
     
     func invokeCallbacks(error: Error?) {
+        let result: Result<Void> = {
+            if let error = error {
+                return .failure(error)
+            } else {
+                return .success()
+            }
+        }()
         for callback in callbacks {
-            callback(error)
+            callback(result)
         }
     }
 }
@@ -244,7 +264,7 @@ extension CentralProxy {
         initializeBluetooth { [unowned self] (error) in
             
             if let error = error {
-                callback(error)
+                callback(.failure(error))
                 return
             }
             
@@ -252,7 +272,7 @@ extension CentralProxy {
             
             if let cbPeripheral = self.centralManager.retrievePeripherals(withIdentifiers: [uuid]).first,
                 (cbPeripheral.state == .disconnected || cbPeripheral.state == .disconnecting) {
-                callback(nil)
+                callback(.success())
                 return
             }
             
